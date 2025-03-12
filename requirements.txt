@@ -1,0 +1,7 @@
+numpy
+tqdm
+ollama
+scipy
+nltk
+zstandard
+scikit-learn
