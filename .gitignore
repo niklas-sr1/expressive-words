@@ -1,5 +1,4 @@
 old/
-expressive_words.txt
 cached_embeddings.json*
 
 # Source: https://github.com/github/gitignore/blob/5b0261b4675e803934284a1c37eb478c38a89030/Python.gitignore
