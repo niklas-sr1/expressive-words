@@ -9,7 +9,6 @@ with open("expressive_words.txt", "r", encoding="utf-8") as f:
 
 for i in range(CHOICES):
     random_word = random.choice(words)
-    random_word2 = random.choice(words)
-    debug_version = f"0.x.x-debug.id-{random_word}-{random_word2}"
+    debug_version = f"0.x.x-debug.id-{random_word}"
 
     print(debug_version)
