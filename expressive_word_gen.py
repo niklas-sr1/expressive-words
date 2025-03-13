@@ -19,10 +19,13 @@ if len(sys.argv) < 2:
 nltk.download("averaged_perceptron_tagger_eng")
 
 # Configurations
-BATCH_SIZE = 128  # Adjust batch size based on system performance
 OUTPUT_FILTERED_WORDLIST_FILE = "expressive_words.txt"
-CACHE_FILE = "cached_embeddings.json"
 MODEL = "mxbai-embed-large"
+OLLAMA_HOST = "http://192.168.178.142:11434"  # Change to your Ollama server IP
+BATCH_SIZE = 128  # Adjust batch size based on system performance
+
+CACHE_FILE = "cached_embeddings.json"
+COMPRESS_CACHE_FILE = True
 
 # Define multiple elaborate prompts
 POSITIVE_PROMPTS = [
@@ -89,7 +92,7 @@ NEGATIVE_EXAMPLE_WORDS = [
 ]
 
 # Initialize Ollama client
-ollama = Client(host="http://192.168.178.142:11434")
+ollama = Client(host=OLLAMA_HOST)
 
 # Step 1: Load the word list
 words = []
@@ -143,19 +146,47 @@ print("Loading cached embeddings...")
 compressed_cache_file = CACHE_FILE + ".zst"
 cached_embeddings = {}
 
-if os.path.exists(compressed_cache_file):
-    with open(compressed_cache_file, "rb") as f:
-        dctx = zstd.ZstdDecompressor()
-        with dctx.stream_reader(f) as reader:
-            decompressed_data = reader.read()
-            cached_embeddings = json.loads(decompressed_data.decode("utf-8"))
+def save_cache():
+    if COMPRESS_CACHE_FILE:
+        with open(compressed_cache_file, "wb") as f:
+            cctx = zstd.ZstdCompressor()
+            with cctx.stream_writer(f) as compressor:
+                compressor.write(json.dumps(cached_embeddings).encode("utf-8"))
+    else:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cached_embeddings, f)
+
+def load_cache(compressed):
+    if compressed:
+        with open(compressed_cache_file, "rb") as f:
+            dctx = zstd.ZstdDecompressor()
+            with dctx.stream_reader(f) as reader:
+                decompressed_data = reader.read()
+                return json.loads(decompressed_data.decode("utf-8"))
+        if not COMPRESS_CACHE_FILE:
+            save_cache()
+    else:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+        if COMPRESS_CACHE_FILE:
+            save_cache()
+
+# Prefer file with more recent modification time
+if os.path.exists(compressed_cache_file) and os.path.exists(CACHE_FILE):
+    compressed_mtime = os.path.getmtime(compressed_cache_file)
+    uncompressed_mtime = os.path.getmtime(CACHE_FILE)
+    if compressed_mtime > uncompressed_mtime:
+        print("Loading compressed cache...")
+        cached_embeddings = load_cache(True)
+    else:
+        print("Loading uncompressed cache...")
+        cached_embeddings = load_cache(False)
+elif os.path.exists(compressed_cache_file):
+    print("Loading compressed cache...")
+    cached_embeddings = load_cache(True)
 elif os.path.exists(CACHE_FILE):
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        cached_embeddings = json.load(f)
-    with open(compressed_cache_file, "wb") as f:
-        cctx = zstd.ZstdCompressor()
-        with cctx.stream_writer(f) as compressor:
-            compressor.write(json.dumps(cached_embeddings).encode("utf-8"))
+    print("Loading uncompressed cache...")
+    cached_embeddings = load_cache(False)
 
 def get_embeddings_batched(word_list, batch_size):
     embeddings = {}
